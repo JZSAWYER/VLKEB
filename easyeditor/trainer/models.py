@@ -4,7 +4,7 @@ import re
 import torch
 import torch.nn as nn
 import transformers
-from transformers import GPT2Tokenizer, GPT2TokenizerFast
+from transformers import GPT2Tokenizer, GPT2TokenizerFast, AutoModelForCausalLM, AutoTokenizer
 
 from .utils import scr
 
@@ -98,6 +98,29 @@ def get_model(config):
             qformer_name_or_path=config.qformer_name_or_path,
             pretrained_ckpt=config.pretrained_ckpt,
         )
+    elif config.model_name == "qwen-vl":
+        LOG.info(
+            f"Loading model with name {config.model_name}"
+        )
+        model = AutoModelForCausalLM.from_pretrained(config.name, 
+                                                     device_map=f"cuda:{config.device}", 
+                                                     trust_remote_code=True).train()
+        model._tok = AutoTokenizer.from_pretrained(config.tokenizer_name, trust_remote_code=True, pad_token='<|endoftext|>')
+    elif config.model_name == "owl-2":
+        LOG.info(
+            f"Loading model with name {config.model_name}"
+        )
+        # from .mPLUG_Owl2.mplug_owl2.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
+        # from .mPLUG_Owl2.mplug_owl2.conversation import conv_templates, SeparatorStyle
+        from .mPLUG_Owl2.mplug_owl2.model.builder import load_pretrained_model
+        # from .mPLUG_Owl2.mplug_owl2.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+        # model_name = get_model_name_from_path(config.name)
+        tokenizer , model, _, _ = load_pretrained_model(config.name, None, 'mplug_owl2', load_8bit=False, load_4bit=False, device=f"cuda:{config.device}")
+        # if config.alg_name == "FT":
+        #     model = model.half()
+        model._tok = tokenizer
+        for param in model.parameters():
+            param.requires_grad = True
     else:
         ModelClass = getattr(transformers, config.model_class)
         LOG.info(

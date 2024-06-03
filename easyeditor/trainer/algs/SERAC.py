@@ -426,8 +426,10 @@ class SERAC_MULTI(EditableModel):
             if config.model_name == "minigpt4":
                 self.replacement_tok = transformers.LlamaTokenizer.from_pretrained(config.small_name,)
                 self.replacement_tok.pad_token = self.replacement_tok.eos_token
+            elif config.model_name == "owl-2":
+                self.replacement_tok = transformers.AutoTokenizer.from_pretrained(config.small_name, trust_remote_code=True, use_fast=False)
             else:
-                self.replacement_tok = transformers.AutoTokenizer.from_pretrained(config.small_name)
+                self.replacement_tok = transformers.AutoTokenizer.from_pretrained(config.small_name, trust_remote_code=True)
             if self.config.freeze_cntr:
                 self.replacement = None
             else:
@@ -445,12 +447,35 @@ class SERAC_MULTI(EditableModel):
                             v.requires_grad = True
                         else:
                             v.requires_grad = False
+                elif config.model_name == "qwen-vl":
+                    from transformers import AutoModelForCausalLM
+                    self.replacement = AutoModelForCausalLM.from_pretrained(config.small_name, trust_remote_code=True)
+                    for k, v in self.replacement.named_parameters():
+                        if '31' in k:
+                            v.requires_grad = True
+                        else:
+                            v.requires_grad = False
+                elif config.model_name == "owl-2":
+                    # from ..mPLUG_Owl2.mplug_owl2.model.builder import load_pretrained_model
+                    # _, self.replacement, _, _ = load_pretrained_model(config.small_name, None, 'mplug_owl2', load_8bit=False, load_4bit=False, device=f"cuda:{config.device}")
+                    from mplug_owl2.model.modeling_mplug_owl2 import revert_llama_modality_adaptive
+                    from mplug_owl2.model.modeling_llama2 import replace_llama_modality_adaptive
+                    revert_llama_modality_adaptive()
+                    self.replacement = transformers.AutoModelForCausalLM.from_pretrained(config.small_name, trust_remote_code=True)
+                    for k, v in self.replacement.named_parameters():
+                        if '31' in k:
+                            v.requires_grad = True
+                        else:
+                            v.requires_grad = False
+                    replace_llama_modality_adaptive()
                 else:
                     self.replacement = getattr(transformers, config.model_class).from_pretrained(config.small_name)
-                if self.replacement_tok.sep_token is None and "gpt" not in config.name.lower():
+                if self.replacement_tok.sep_token is None and "gpt" not in config.name.lower() and "qwen-vl" not in config.name.lower():
                     add_sep(self.replacement_tok, self.replacement)
-                if self.replacement_tok.pad_token is None:
+                if self.replacement_tok.pad_token is None and "qwen-vl" not in config.name.lower():
                     add_padding(self.replacement_tok, self.replacement)
+                if "owl2" in config.name.lower():
+                    self.model.resize_token_embeddings(len(self.replacement_tok))
                 set_dropout(self.replacement, config.dropout)
         else:
             assert isinstance(replacement, torch.nn.Module), f"Rep is {type(replacement)}!"
@@ -464,7 +489,10 @@ class SERAC_MULTI(EditableModel):
                 self.register_buffer("scale", torch.tensor(1.0))
             else:
                 self.scale = scale
-        self.language_projection = torch.nn.Linear(self.model.Qformer.config.hidden_size, self.replacement.config.hidden_size)
+        if config.model_name == "qwen-vl" or config.model_name == "owl-2":
+            self.language_projection = None
+        else:
+            self.language_projection = torch.nn.Linear(self.model.Qformer.config.hidden_size, self.replacement.config.hidden_size)
         if cache_inputs is None:
             self.cache_inputs = []
             self.cache_labels = []
@@ -505,6 +533,8 @@ class SERAC_MULTI(EditableModel):
 
         # We should only have missing keys for the model, and no unexpected keys
         def ok_to_miss(k):
+            if "owl" in self.config.model_name.lower():
+                return k.startswith("model.") or (self.config.freeze_cntr and k.startswith("replacement.")) or (k.startswith("replacement.") and ("31" not in k)) or (k.startswith("replacement.model.layers.31.self_attn.rotary_emb.inv_freq"))
             return k.startswith("model.") or (self.config.freeze_cntr and k.startswith("replacement."))
         missing_keys = [k for k in res.missing_keys if not ok_to_miss(k)]
         assert len(missing_keys) == 0, f"Should only have missing keys for model: {missing_keys}."
@@ -530,7 +560,7 @@ class SERAC_MULTI(EditableModel):
                 model_params.extend(cls.pre_classifier.parameters())
 
         if not self.config.freeze_cntr:
-            if self.config.model_name == "minigpt4":
+            if self.config.model_name == "minigpt4" or self.config.model_name == "qwen-vl" or self.config.model_name == "owl-2":
                 params_extend = []
                 # alter
                 for k, v in self.replacement.named_parameters():
@@ -553,15 +583,18 @@ class SERAC_MULTI(EditableModel):
 
     def edit(self, batch, condition=None, detach_history=False):
         def detokenize(toks, tok):
-            tokens = toks.masked_fill(toks == -100, tok.pad_token_id)
+            if self.config.model_name =="qwen-vl":
+                tokens = toks
+            else:
+                tokens = toks.masked_fill(toks == -100, tok.pad_token_id)
             return tok.batch_decode(tokens, skip_special_tokens=True)
-        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2":
+        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl" or "owl" in self.config.model_name.lower():
             inputs = batch["text_input"]
         else:
             inputs = detokenize(batch["input_ids"], self.replacement_tok)
         if "bert" in self.config.name:
             labels = ["" for _ in batch["labels"]]
-        elif self.config.model_name == "minigpt4" or self.config.model_name == "blip2":
+        elif self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl" or "owl" in self.config.model_name.lower():
             labels = batch["labels"]
             if isinstance(labels, torch.Tensor):
                 labels = detokenize(labels, self.replacement_tok)
@@ -635,8 +668,8 @@ class SERAC_MULTI(EditableModel):
             # The labels are include in the inputs for autoregressive models. Cut off the label for the classifier
             inputs = [cin.rsplit(" ", 1)[0] + sep for cin in self.cache_inputs]
         else:
-            # inputs = [cin + sep + clab + sep for cin, clab in zip(self.cache_inputs, self.cache_labels)]
-            inputs = self.cache_inputs
+            inputs = [cin + sep + clab + sep for cin, clab in zip(self.cache_inputs, self.cache_labels)]
+            # inputs = self.cache_inputs
         return inputs
 
     def build_rep_input_tokens(self, kwargs, idxs, generation=False):
@@ -644,12 +677,16 @@ class SERAC_MULTI(EditableModel):
             assert len(idxs) == len(kwargs["input_ids"]), "Need one cache idx for each test input"
         cache_contexts = self.build_rep_cache_contexts()
         selected_contexts = [cache_contexts[idx.item()] for idx in idxs]
-        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2":
+        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl" or "owl" in self.config.model_name.lower():
             test_inputs = kwargs["text_input"]
         else:
             test_inputs = self.replacement_tok.batch_decode(kwargs["input_ids"], skip_special_tokens=True)
         rep_texts = [ctx + inp for ctx, inp in zip(selected_contexts, test_inputs)]
         rep_input_tokens = self.replacement_tok(rep_texts, return_tensors="pt", add_special_tokens=False).to(self.config.device)
+        if "qwen-vl" in self.model.config.name_or_path.lower() or "owl2" in self.model.config.name_or_path.lower():
+            rep_input_tokens = self.replacement_tok(rep_texts, return_tensors="pt", add_special_tokens=True).to(self.config.device)
+        else:
+            rep_input_tokens = self.replacement_tok(rep_texts, return_tensors="pt", padding=True).to(self.config.device)
 
         rep_kwargs = {
             "input_ids": rep_input_tokens["input_ids"],
@@ -672,7 +709,7 @@ class SERAC_MULTI(EditableModel):
 
     def run_classifier(self, *inputs, **kwargs):
         cache_inputs = self.build_cls_cache_inputs()
-        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2":
+        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl" or "owl" in self.config.model_name.lower():
             test_inputs = inputs[0]["text_input"]
         else:
             test_inputs = self.replacement_tok.batch_decode(kwargs["input_ids"], skip_special_tokens=True)
@@ -720,6 +757,13 @@ class SERAC_MULTI(EditableModel):
             if len(self.cache_inputs) == 0:
                 if self.config.model_name == "blip2" or self.config.model_name == "minigpt4":
                     super_out = self.model(*inputs, **kwargs)
+                elif self.config.model_name == "qwen-vl":
+                    super_out = self.model(inputs[0]['inputs'], **kwargs)
+                elif  "owl" in self.config.model_name.lower():
+                    _input = inputs[0]
+                    super_out = self.model(_input['input_ids'].to(self.config.device), 
+                                           images=_input['image'].to(self.config.device, dtype=torch.float16),
+                                           **kwargs)
                 else:
                     super_out = super().forward(*inputs, **kwargs).float()
                 torch.set_grad_enabled(grad_enabled)
@@ -734,6 +778,18 @@ class SERAC_MULTI(EditableModel):
                         final_att_mask = base_logits.attention_mask
                         base_logits = base_logits.logits
                     base_logits = base_logits.float()
+                elif self.config.model_name == "qwen-vl":
+                    base_logits = super().forward(*inputs, **kwargs)
+                    if not isinstance(base_logits, torch.Tensor):
+                        base_logits = base_logits.logits
+                    base_logits = base_logits.float()
+                elif  "owl" in self.config.model_name.lower():
+                    self.model.train(False)
+                    base_logits = super().forward(*inputs, **kwargs)
+                    if not isinstance(base_logits, torch.Tensor):
+                        base_logits = base_logits.logits
+                    base_logits = base_logits.float()
+                    self.model.train(self.training)
                 else:
                     base_logits = super().forward(*inputs, **kwargs).float()
                 if soft:
@@ -744,7 +800,7 @@ class SERAC_MULTI(EditableModel):
                     del base_logits
 
         cls_sims, cls_idxs, cls_logits = self.run_classifier(*inputs, **kwargs)
-        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2":
+        if self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl" or "owl" in self.config.model_name.lower():
             rep_cls_inputs = self.build_rep_input_tokens(inputs[0], cls_idxs)
         else:
             rep_cls_inputs = self.build_rep_input_tokens(kwargs, cls_idxs)
@@ -847,6 +903,85 @@ class SERAC_MULTI(EditableModel):
                         labels=targets,
                     )
                     rep_cls_logits = rep_cls_outputs.logits
+                elif self.config.model_name == "qwen-vl":
+                    rep_cls_labels = rep_cls_inputs.pop("labels")
+                    image = inputs[0]["image"]
+                    if image is not None:
+                        input_ids = rep_cls_inputs["input_ids"]
+                        attention_mask = rep_cls_inputs["attention_mask"]
+                        
+                        # Create image token IDs
+                        image_token_ids = torch.ones((input_ids.shape[0]), dtype=input_ids.dtype, device=input_ids.device).fill_(-200)
+                        input_ids = torch.cat((input_ids[:, :1], image_token_ids.unsqueeze(1), input_ids[:, 1:]), dim=1)
+
+                        # Create image attention mask
+                        image_att_mask = torch.ones((input_ids.shape[0]), dtype=input_ids.dtype, device=input_ids.device)
+                        attention_mask = torch.cat((attention_mask[:, :1], image_att_mask.unsqueeze(1), attention_mask[:, 1:]), dim=1)
+                        
+                        # Set targets
+                        targets = input_ids.clone()
+                        if inputs[0]['prompts_len']:
+                            for i, prompt_len in enumerate(inputs[0]['prompts_len']):
+                                targets[i, :prompt_len+1] = -100
+                        
+                        # Assuming the qwen-vl model takes multimodal inputs directly
+                        model_inputs = {
+                            "input_ids": input_ids,
+                            "attention_mask": attention_mask,
+                            "image": image,
+                            "labels": targets
+                        }
+
+                        outputs = self.replacement(**model_inputs)
+                        rep_cls_logits = outputs.logits[:, -base_probs.shape[1]:, :]
+                    else:
+                        rep_cls_logits = _logits(self.replacement(**rep_cls_inputs))[:, -base_probs.shape[1]:, :]
+
+            elif "owl" in self.config.model_name.lower():
+                rep_cls_labels = rep_cls_inputs.pop("labels")
+                image = inputs[0]["image"]
+                if image is not None:
+                    from mplug_owl2.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+                    image = inputs[0]["image"].to(self.config.device, dtype=torch.float16)
+                    input_ids = rep_cls_inputs["input_ids"].to(self.config.device)
+                    # input_ids = self.replacement_tok.tokenize(inputs[0]['text_input'])
+                    attention_mask = rep_cls_inputs["attention_mask"]
+                    image_token_ids = torch.ones((input_ids.shape[0]), dtype=input_ids.dtype, device=input_ids.device).fill_(IMAGE_TOKEN_INDEX)
+                    input_ids = torch.cat((input_ids[:, :1], image_token_ids.unsqueeze(1), input_ids[:, 1:]), dim=1)
+
+                    image_att_mask = torch.ones((input_ids.shape[0]), dtype=input_ids.dtype, device=input_ids.device)
+                    attention_mask = torch.cat((attention_mask[:, :1], image_att_mask.unsqueeze(1), attention_mask[:, 1:]), dim=1)
+                        
+                    targets = input_ids.masked_fill(input_ids==self.replacement_tok.pad_token_id, IGNORE_INDEX)
+                    # targets = input_ids
+                    if inputs[0]['prompts_len']:
+                        for i, prompt_len in enumerate(inputs[0]['prompts_len']):
+                                targets[i, :prompt_len+1] = IGNORE_INDEX
+                        (   _,
+                            _,
+                            attention_mask,
+                            _,
+                            inputs_embeds,
+                            targets
+                        ) = self.model.prepare_inputs_labels_for_multimodal(
+                            input_ids,
+                            attention_mask,
+                            None,
+                            targets,
+                            image
+                        )
+                    from mplug_owl2.model.modeling_mplug_owl2 import revert_llama_modality_adaptive
+                    from mplug_owl2.model.modeling_llama2 import replace_llama_modality_adaptive
+                    revert_llama_modality_adaptive()
+                    rep_cls_logits = self.replacement(
+                            # input_ids=input_ids,
+                            # images = image,
+                            inputs_embeds=inputs_embeds,
+                            attention_mask=attention_mask,
+                            return_dict=True,
+                            labels=targets,
+                        ).logits[:, -base_probs.shape[1]:, :]
+                    replace_llama_modality_adaptive()
                 else:
                     rep_cls_logits = _logits(self.replacement(**rep_cls_inputs))
                 rep_cls_logits = rep_cls_logits[:, -base_probs.shape[1]:, :]
@@ -903,6 +1038,8 @@ class SERAC_MULTI(EditableModel):
         torch.set_grad_enabled(grad_enabled)
         if return_logits_only:
             from ..blip2_models.mini_gpt4 import MiniGPTOutput
+            if "owl" in self.config.model_name.lower():
+                return mixture_logits
             return MiniGPTOutput(
                     logits=mixture_logits,
                     labels=final_labels,

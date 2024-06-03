@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 from copy import deepcopy
 
 from ..losses import masked_log_probs
@@ -14,7 +15,7 @@ class EditableModel(nn.Module):
         self.model_constructor = model_constructor
 
         def _edit_loss_fn(config, pred, targ, **kwargs):
-            if 'minigpt4' in config.model_name.lower() or 'blip' in self.config.model_name.lower():
+            if 'minigpt4' in config.model_name.lower() or 'blip' in self.config.model_name.lower() or 'qwen-vl' in self.config.model_name.lower() or 'owl-2' in self.config.model_name.lower():
                 return masked_log_probs(config, pred, targ, exact_match=self.config.exact_match, shift=True, **kwargs)
             elif 't5' in config.model_class.lower():
                 return masked_log_probs(config, pred, targ,)
@@ -40,7 +41,14 @@ class EditableModel(nn.Module):
         raise NotImplementedError
 
     def forward(self, *inputs, **kwargs):
-        return _logits(self.model(*inputs, **kwargs))
+        if "qwen-vl" in self.model.config.name_or_path.lower():
+            return _logits(self.model(inputs[0]['inputs']))
+        elif "owl2" in self.model.config.name_or_path.lower():
+            input_ids, image = inputs[0]['input_ids'], inputs[0]['image']
+            return _logits(self.model(input_ids.to(self.config.device), 
+                                         images=image.to(self.config.device, dtype=torch.float16)))
+        else:
+            return _logits(self.model(*inputs, **kwargs))
 
     def outer_parameters(self):
         return self.parameters()

@@ -256,6 +256,13 @@ class MEND(EditableModel):
     def forward(self, *inputs, **kwargs):
         if 'minigpt4' in self.config.model_name.lower() or 'blip' in self.config.model_name.lower():
             outputs = self.model(*inputs, **kwargs)
+        elif 'qwen-vl' in self.config.model_name.lower():
+            outputs = _logits(self.model(inputs[0]['inputs'].to(self.model.device)))
+        elif 'owl-2' in self.config.model_name.lower():
+            # with torch.inference_mode():
+            input_ids, image = inputs[0]['input_ids'].to(self.model.device), inputs[0]['image'].to(self.model.device)
+            outputs = _logits(self.model(input_ids, 
+                                         images=image.to(dtype=torch.float16)))
         elif 'gpt' in self.config.model_name.lower():
             outputs = _logits(self.model(input_ids=kwargs['input_ids'], attention_mask=kwargs['attention_mask']))
             # outputs = outputs[:, -kwargs['labels'].shape[-1]:, :]
@@ -289,7 +296,20 @@ class MEND(EditableModel):
                 outputs = outputs.logits
             else:
                 batch_labels = batch['labels']
-            loss = self.edit_loss_fn(self.config, outputs, batch_labels, multimodal=True)["nll"]          
+            loss = self.edit_loss_fn(self.config, outputs, batch_labels, multimodal=True)["nll"]    
+        elif 'qwen-vl' in self.config.model_name.lower():
+            if ('eval' in batch) and batch['eval']:
+                outputs = _logits(self.model(batch['inputs'].to(self.model.device)))
+            # self.model.training = False
+            else:
+                outputs = _logits(self.model(batch['inputs']))
+            loss = self.edit_loss_fn(self.config, outputs, batch["labels"])["nll"]
+        elif 'owl-2' in self.config.model_name.lower():
+            # with torch.inference_mode():
+            input_ids, image = batch['input_ids'].to(self.model.device), batch['image'].to(self.model.device)
+            outputs = _logits(self.model(input_ids, 
+                                         images=image.to(dtype=torch.float16)))
+            loss = self.edit_loss_fn(self.config, outputs, batch["labels"])["nll"]   # TODO Check whether needs to shift          
         elif 'gpt' in self.config.model_name.lower():
             outputs = _logits(self.model(input_ids=batch['input_ids'], attention_mask=batch['attention_mask']))
             # outputs = outputs[:, -batch['labels'].shape[-1]:, :]

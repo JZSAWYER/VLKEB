@@ -3,7 +3,7 @@ Contains evaluation utilities for pytorch-based rewriting methods.
 To use, simply call `compute_rewrite_quality_zsre` with the
 appropriate arguments, which returns a dictionary containing them.
 """
-from ..models.melo.melo import LORA
+# from ..models.melo.melo import LORA
 
 import typing
 from itertools import chain
@@ -53,8 +53,8 @@ def compute_edit_quality(
     :param vec: ???
     :return: Dictionary containing rewriting metrics
     """
-    if isinstance(model,LORA):
-        model=model.model
+    # if isinstance(model,LORA):
+    #     model=model.model
     # First, unpack rewrite evaluation record.
     target_new, ground_truth = (
         record[x] for x in ["target_new", "ground_truth"]
@@ -421,26 +421,73 @@ def prepare_multimodal_edit(hparams,
                             prompts,
                             image):
     if isinstance(target, str):
-        target = [target,]
+            target = [target,]
     if isinstance(prompts, str):
-        prompts = [prompts,]
-    if image is not None and len(image.shape) == 3:
-        image = image.unsqueeze(0)
-    text_input = [prompt_ + ' ' + target_ for prompt_, target_ in zip(prompts, target)]
-    
-    if hparams.model_name == 'minigpt4':
-        prompts_len = [len(tok.encode(prompt, add_special_tokens=False)) for prompt in prompts]
-        target = tok(target, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+            prompts = [prompts,]
+    if "qwen-vl" in hparams.model_name.lower():
+        if image is not None:
+            text = ''
+            num_images = 1
+            text += f'Picture {num_images}: '
+            text += '<img>' + image + '</img>'
+            text += '\n'
+            text += prompts[0] + " " + target[0]
+            inputs = tok(text, return_tensors='pt')["input_ids"]
+        else:
+            text = ''
+            text += prompts[0] + " " + target[0]
+            inputs = tok(text, return_tensors='pt')["input_ids"]
+        # print("len_inputs:\t", len(inputs[0]))
+        # print("******************************************************************")
+        # print(text)
+        # print("******************************************************************")
+        ret = {
+            'inputs': inputs,
+            # 'labels': tok(target, add_special_tokens=False, return_tensors="pt",)["input_ids"],
+            'labels': tok(" " + target[0], add_special_tokens=False, return_tensors="pt",)["input_ids"],
+        }
+        # print({'inputs': ret['inputs'][0][-10:], 'labels': ret['labels'][0]})
+    elif 'owl' in hparams.model_name.lower():
+        from ..trainer.mPLUG_Owl2.mplug_owl2.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
+        from ..trainer.mPLUG_Owl2.mplug_owl2.conversation import conv_templates, SeparatorStyle
+        from ..trainer.mPLUG_Owl2.mplug_owl2.model.builder import load_pretrained_model
+        from ..trainer.mPLUG_Owl2.mplug_owl2.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+
+        # conv = conv_templates["mplug_owl2"].copy()
+        # inp = DEFAULT_IMAGE_TOKEN + prompts[0] + " " + target[0]
+        # conv.append_message(conv.roles[0], inp)
+        # conv.append_message(conv.roles[1], None)
+        # prompt = conv.get_prompt()
+        prompt = prompts[0] + " " + target[0]
+        if image is not None:
+            prompt = DEFAULT_IMAGE_TOKEN + prompt
+        input_ids = tokenizer_image_token(prompt, tok, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0)
+        # if image is None:
+        #     image = torch.zeros(1, 3, 448, 448)
+        ret = {
+            'input_ids': input_ids,
+            'labels': tok(target, add_special_tokens=False, return_tensors="pt",)["input_ids"],
+            'image': image
+        }
+
     else:
-        prompts_len = [len(tok.encode(prompt,  add_special_tokens=False)) for prompt in prompts]  
-        target = tok([' ' + target_ if target_[0] != ' ' else target_ for target_ in target], add_special_tokens=False, return_tensors="pt",)["input_ids"]
+        if image is not None and len(image.shape) == 3:
+            image = image.unsqueeze(0)
+        text_input = [prompt_ + ' ' + target_ for prompt_, target_ in zip(prompts, target)]
         
-    ret = {
-        'text_input': text_input,
-        'image': image,
-        'labels': target,
-        'prompts_len': prompts_len        
-    } 
+        if hparams.model_name == 'minigpt4':
+            prompts_len = [len(tok.encode(prompt, add_special_tokens=False)) for prompt in prompts]
+            target = tok(target, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+        else:
+            prompts_len = [len(tok.encode(prompt,)) for prompt in prompts]  
+            target = tok([' ' + target_ if target_[0] != ' ' else target_ for target_ in target], add_special_tokens=False, return_tensors="pt",)["input_ids"]
+            
+        ret = {
+            'text_input': text_input,
+            'image': image,
+            'labels': target,
+            'prompts_len': prompts_len 
+        } 
     return ret
 
 def compute_multimodal_edit_quality(model, batch, exach_match=False):

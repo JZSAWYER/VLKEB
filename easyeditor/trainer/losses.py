@@ -56,7 +56,7 @@ def multiclass_log_probs(config, pred, targ, shift=False, eps=torch.finfo(torch.
     NULL_TOKEN = 0  # a placeholder used for masked target locations
 
     pred = pred.clone()
-    targ = targ.clone()
+    targ = targ.clone().to(pred.device)
     if shift and pred.dim() == 3:  # Dealing with sequences
         pred = pred[:, :-1]  # Remove last prediction in sequence
         if "inner_sent" in kwargs or "personality" in kwargs or "multimodal" in kwargs:
@@ -71,8 +71,8 @@ def multiclass_log_probs(config, pred, targ, shift=False, eps=torch.finfo(torch.
     
     # debug
     # print(pred.shape, targ.shape)
-    # if pred.size(1) > targ.size(1):
-    #     pred = pred[:, :targ.size(1)]
+    if pred.size(1) > targ.size(1):
+        pred = pred[:, :targ.size(1)]
 
     if exact_match:
         pred_ids = pred.argmax(-1).masked_fill(~mask, NULL_TOKEN)
@@ -120,6 +120,8 @@ def multiclass_log_probs(config, pred, targ, shift=False, eps=torch.finfo(torch.
         "prob": prob,
         "n_tokens": n_tokens,
         "nll": nll,
+        "pred_ids": pred_ids,
+        "targ_ids": targ,
     }
 
 

@@ -53,6 +53,10 @@ class BaseTrainer:
 
         if 'minigpt4' in self.config.model_name.lower() or 'blip2' in self.config.model_name.lower():
             collate_fn = train_set.collate_fn
+        elif 'qwen-vl' in self.config.model_name.lower():
+            collate_fn = train_set.collate_fn_qwen
+        elif 'owl-2' in self.config.model_name.lower():
+            collate_fn = train_set.collate_fn_owl
         elif 't5' in self.config.model_class.lower():
             collate_fn = train_set.collate_fn
         elif 'gpt' in self.config.model_class.lower():
@@ -147,6 +151,10 @@ class BaseTrainer:
             )
 
     def run(self):
+        from datetime import datetime
+        cur_time = datetime.now().strftime("%y%m%d_%H%M%S")
+        self.save_path = self.save_path + '_' + cur_time
+
         averager = RunningStatAverager("train")
         stopper = EarlyStopper(
             self.config.early_stop_patience, self.config.early_stop_key
@@ -235,21 +243,23 @@ class BaseTrainer:
                     self.model.load_state_dict(archive["model"])
                     self.model.to(self.config.device)
 
+        result_name = f'{cur_time}_{self.config.alg}_{self.config.model_name}'
         val_steps = self.config.val_steps if self.config.debug else None
         if self.config.alg == 'MALMEN':
             val_info = self.model.valid(log=True, steps=val_steps, config=self.config, loader=self.val_loader, val_set=self.val_set)
         else:
-            val_info = self.validate(log=True, steps=val_steps)
+            val_info = self.validate(log=True, steps=val_steps, result_name=result_name)
         self.echo(self.global_iter, val_info, pretty=True)
 
         if self.config.results_dir is not None:
-            results_path = f"{self.config.results_dir}/results.json"
+            os.makedirs('results/results_multihop', exist_ok=True)
+            results_path = f"results/results_multihop/{result_name}_portresults.json"
         else:
             results_path = f"{os.getcwd()}/results.json"
 
         with open(results_path, "w") as f:
             json.dump(
-                {"results": val_info}, f
+                {"results": val_info}, f, indent=4
             )
             LOG.info("Wrote results to:")
             LOG.info(results_path)
