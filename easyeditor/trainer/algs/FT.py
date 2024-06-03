@@ -115,7 +115,7 @@ class FT(EditableModel):
             for it in pbar:
                 opt.zero_grad()
 
-                outputs = self.model(batch['inputs'])
+                outputs = self.model(batch['inputs'].to(self.model.device))
                 if not isinstance(outputs, torch.Tensor):
                     outputs = outputs.logits
                 loss = self.edit_loss_fn(self.config, outputs, batch["labels"])["nll"]
@@ -155,9 +155,11 @@ class FT(EditableModel):
             raise not NotImplementedError("Model not supported")
 
         if detach_history:
-            new_model = self.model_constructor()
-            new_model.load_state_dict(edited_model.state_dict())
-            edited_model = new_model
+            # new_model = self.model_constructor()
+            # new_model.load_state_dict(edited_model.state_dict())
+            # edited_model = new_model
+            self.model.load_state_dict(edited_model.state_dict())
+            edited_model = self.model
         else:
             edited_model = self.model
 

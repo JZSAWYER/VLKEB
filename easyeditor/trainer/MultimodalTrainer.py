@@ -60,7 +60,13 @@ class MultimodalTrainer(BaseTrainer):
         # Do the edit
 
         start = time.time()
-        edited_model, model_info = self.model.edit(batch["edit_inner"], batch["cond"])
+        if self.config.alg.lower() == "ft":
+            edited_model, model_info = self.model.edit(batch["edit_inner"], batch["cond"], detach_history=False)
+        else:
+            edited_model, model_info = self.model.edit(batch["edit_inner"], batch["cond"], detach_history=True)
+        #twice edit
+        assert len(batch['port']) == 1, "batch['port'] should have only one element"
+        edited_model, model_info = edited_model.edit(batch["port_edit"][0], batch["cond"], detach_history=False)
         edit_time = time.time() - start
 
         with torch.set_grad_enabled(training):
@@ -246,6 +252,28 @@ class MultimodalTrainer(BaseTrainer):
             f"Step {prog} port_acc: {port_acc} port_1_acc: {port_1_acc} port_2_acc: {port_2_acc} port_3_acc: {port_3_acc} port_4_acc: {port_4_acc}"
         )
 
+    def _inline_validation_log_twiceedit(self, step, stats, start_time, steps):
+        elapsed = (time.time() - start_time) / (step + 1)
+        prog = f"{step+1}/{steps}".ljust(20)
+        # inner_acc = f"{stats['inner/acc_val']:<12.5f}"
+        # outer_acc = f"{stats['edit/acc_val']:<12.5f}"
+        # image_acc = f"{stats['image_rephrase/acc_val']:<12.5f}"
+        # loc_acc = f"{stats['loc/acc_val']:<12.5f}"
+        # loc_image_acc = f"{stats['image_loc/acc_val']:<12.5f}"
+        port_acc = f"{stats['port/acc_val']:<12.5f}"
+        port_1_acc = f"{stats['port_1-hop/acc_val']:<12.5f}"
+        # port_2_acc = f"{stats['port_2-hop/acc_val']:<12.5f}"
+        # port_3_acc = f"{stats['port_3-hop/acc_val']:<12.5f}"
+        # port_4_acc = f"{stats['port_4-hop/acc_val']:<12.5f}"
+
+        # LOG.info(
+        #   f"Step {prog} outer_acc: {outer_acc} image_acc: {image_acc} inner_acc: {inner_acc} it_time: {elapsed:.4f} loc_acc: {loc_acc}, image_loc: {loc_image_acc}"
+        # )
+        LOG.info(
+            f"Step {prog} port_acc: {port_acc} port_1_acc: {port_1_acc}"
+        )
+
+
     def validate(self, steps=None, log: bool = False, result_name: str = None):
         if steps is None or steps > len(self.val_set):
             steps = len(self.val_set)
@@ -293,17 +321,21 @@ class MultimodalTrainer(BaseTrainer):
                 log
                 and (val_step + 1) % self.config.log_interval == 0
             ):
-                self._inline_validation_log(
-                    val_step, averager.average(), start_time, steps
-                )
+                # self._inline_validation_log(
+                #     val_step, averager.average(), start_time, steps
+                # )
+                ##edittwice
+                self._inline_validation_log_twiceedit(val_step, averager.average(), start_time, steps)
 
         if result_name is not None:
-            os.makedirs('results/results_multihop', exist_ok=True)
+            os.makedirs('results/results_test', exist_ok=True)
             with open(f'results/results_multihop/{result_name}_port.json', 'w') as f:
                 json.dump(port_result, f, indent=4)
 
         if log:
-            self._inline_validation_log(val_step, averager.average(), start_time, steps)
+            # self._inline_validation_log(val_step, averager.average(), start_time, steps)
+            ##edittwice
+            self._inline_validation_log_twiceedit(val_step, averager.average(), start_time, steps)
         elapsed = time.time() - start_time
         stats = averager.average()
         stats["eval_time/elapsed"] = elapsed

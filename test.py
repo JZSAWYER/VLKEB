@@ -56,8 +56,10 @@ def test_SERAC_qwen():
 
 def test_SERAC_owl():
     hparams = SERACMultimodalHparams.from_hparams('hparams/SERAC/owl.yaml')
-    eval_ds = VQADataset(eval_path, config=hparams)
+    # eval_ds = VQADataset(eval_path, config=hparams)
     # eval_ds = VQADataset(eval_short_path, config=hparams)
+    # eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice_100.json", config=hparams)
+    eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
         train_set=eval_ds,
@@ -67,7 +69,8 @@ def test_SERAC_owl():
 
 def test_FT_owl():
     hparams = FTMultimodalHparams.from_hparams('hparams/FT/owl2.yaml')
-    eval_ds = VQADataset(eval_path, config=hparams)
+    # eval_ds = VQADataset(eval_path, config=hparams)
+    eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
     # eval_ds = VQADataset(eval_short_path, config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
@@ -78,7 +81,8 @@ def test_FT_owl():
 
 def test_FT_qwen():
     hparams = FTMultimodalHparams.from_hparams('hparams/FT/qwen-vl.yaml')
-    eval_ds = VQADataset(eval_path, config=hparams)
+    # eval_ds = VQADataset(eval_path, config=hparams)
+    eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
     # eval_ds = VQADataset(eval_short_path, config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
@@ -111,7 +115,8 @@ def test_FT_owlvis():
 
 def test_MEND_owl():
     hparams = MENDMultimodalHparams.from_hparams('hparams/MEND/owl2.yaml')
-    eval_ds = VQADataset(eval_path, config=hparams)
+    # eval_ds = VQADataset(eval_path, config=hparams)
+    eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
     # eval_ds = VQADataset(eval_short_path, config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
@@ -228,17 +233,17 @@ if __name__ == '__main__':
     # test_FT_qwen()
     # test_FT_qwenvis()
     # test_FT_owlvis()
-    # test_MEND_owl()
+    test_MEND_owl()
     # test_MEND_qwen()
     # test_owl()
     # test_qwen()
     
 
     # for gap_num in [10, 20, 50 ,100]:
-        gap_num = 10
+        # gap_num = 10
         # test_seq_FT_owl()
         # test_seq_FT_qwen()
         # test_seq_FTvis_owl()
         # test_seq_FTvis_qwen()
         # test_seq_MEND_owl()
-        test_seq_SERAC_owl()
+        # test_seq_SERAC_owl()

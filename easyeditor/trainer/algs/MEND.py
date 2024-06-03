@@ -298,12 +298,8 @@ class MEND(EditableModel):
                 batch_labels = batch['labels']
             loss = self.edit_loss_fn(self.config, outputs, batch_labels, multimodal=True)["nll"]    
         elif 'qwen-vl' in self.config.model_name.lower():
-            if ('eval' in batch) and batch['eval']:
-                outputs = _logits(self.model(batch['inputs'].to(self.model.device)))
-            # self.model.training = False
-            else:
-                outputs = _logits(self.model(batch['inputs']))
-            loss = self.edit_loss_fn(self.config, outputs, batch["labels"])["nll"]
+            outputs = _logits(self.model(batch['inputs'].to(self.model.device)))
+            loss = self.edit_loss_fn(self.config, outputs, batch["labels"].to(outputs.device))["nll"]
         elif 'owl-2' in self.config.model_name.lower():
             # with torch.inference_mode():
             input_ids, image = batch['input_ids'].to(self.model.device), batch['image'].to(self.model.device)
@@ -411,7 +407,7 @@ class MEND(EditableModel):
 
         edited_model = self.model
         if not isinstance(edited_model, higher.patch._MonkeyPatchBase):
-            if 'minigpt4' in self.config.model_name.lower() or 'blip' in self.config.model_name.lower():
+            if 'minigpt4' in self.config.model_name.lower() or 'blip' in self.config.model_name.lower() or 'owl-2' in self.config.model_name.lower():
                 edited_model = _make_functional(edited_model, in_place=True)
             else:
                 edited_model = monkeypatch(edited_model, in_place=True)
@@ -426,10 +422,11 @@ class MEND(EditableModel):
         edited_model.update_params(new_params)
 
         if detach_history:
-            new_model = self.model_constructor()
-            new_model.load_state_dict(edited_model.state_dict())
-            edited_model = new_model
-
+            # new_model = self.model_constructor()
+            # new_model.load_state_dict(edited_model.state_dict())
+            # edited_model = new_model
+            self.model.load_state_dict(edited_model.state_dict())
+            edited_model = self.model
         return (
             MEND(
                 edited_model,

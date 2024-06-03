@@ -157,11 +157,20 @@ class VQADataset(BaseDataset):
             if ('port_new' in record):
                 item['port_q'] = []
                 item['port_a'] = []
+                item['port_edit_q'] = []
+                item['port_edit_a'] = []
                 item['hop'] = []
                 for k in record['port_new']:
-                    item['port_q'].append(k['Q&A']['Question'])
-                    item['port_a'].append(k['Q&A']['Answer'])
-                    item['hop'].append(k['port_type'])
+                    ##twice edit:
+                    item['port_q'].append(k['port_q'])
+                    item['port_a'].append(k['port_a'])
+                    item['port_edit_q'].append(k['port_edit_q'])
+                    item['port_edit_a'].append(k['port_edit_a'])
+                    item['hop'].append('1-hop')
+                    ##orig:
+                    # item['port_q'].append(k['Q&A']['Question'])
+                    # item['port_a'].append(k['Q&A']['Answer'])
+                    # item['hop'].append(k['port_type'])
             else:
                 continue
             data.append(item)
@@ -284,6 +293,8 @@ class VQADataset(BaseDataset):
             port_q = batch[0]['port_q']
             port_a = batch[0]['port_a']
             hop = batch[0]['hop']
+            port_edit_q = batch[0]['port_edit_q']
+            port_edit_a = batch[0]['port_edit_a']
             
         
         # edit_inner
@@ -398,6 +409,25 @@ class VQADataset(BaseDataset):
                 port.append(port_new)
                 cnt +=1
 
+        ##Portability for two edits
+        port_edit = []
+        if('port_edit_q' in batch[0]):
+            for _q, _a in zip(port_edit_q, port_edit_a):
+                port_new = {}
+                text = ''
+                num_images = 1
+                text += f'Picture {num_images}: '
+                text += '<img>' + image[0] + '</img>'
+                text += '\n'
+                text += _q + " " + _a
+                port_new['inputs'] = self.tok(text, return_tensors='pt')["input_ids"]
+                port_new['prompts_len'] = [len(self.tok.encode(_q))]
+                port_new['text_input'] = [" ".join([_q, _a]) ]
+                port_new['image'] = image
+                # port_new['labels'] = self.tok(_a, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+                port_new['labels'] = self.tok(' ' + _a, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+                port_edit.append(port_new)
+
         # cond
         cond = self.tok(
             cond,
@@ -414,7 +444,8 @@ class VQADataset(BaseDataset):
             "loc": loc,
             "loc_image": loc_image,
             "cond": cond,
-            "port": port
+            "port": port,
+            "port_edit": port_edit
         }
         return dict_to(batch, self.config.device)
     
@@ -519,6 +550,8 @@ class VQADataset(BaseDataset):
             port_q = batch[0]['port_q']
             port_a = batch[0]['port_a']
             hop = batch[0]['hop']
+            port_edit_q = batch[0]['port_edit_q']
+            port_edit_a = batch[0]['port_edit_a']
 
 
         # image_tensor = image[0] # Image Path
@@ -677,8 +710,21 @@ class VQADataset(BaseDataset):
                 port_new['hop'] = hop[cnt]
                 port.append(port_new)
                 cnt += 1  
-                port.append(port_new)
+                # port.append(port_new)
 
+        ##Portability for two edits
+        port_edit = []
+        if('port_edit_q' in batch[0]):
+            for _q, _a in zip(port_edit_q, port_edit_a):
+                port_new = {}
+                port_new['image'] = image[0]
+                port_new['text_input'] = [" ".join([_q, _a])]
+                port_new['target'] = _a
+                prompt = DEFAULT_IMAGE_TOKEN + _q + " " + _a
+                port_new['input_ids'] = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0)
+                port_new['prompts_len'] = [len(self.tok.encode(prompt, add_special_tokens=False))]
+                port_new['labels'] = self.tok(_a, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+                port_edit.append(port_new)
 
         # cond
         cond = self.tok(
@@ -696,6 +742,7 @@ class VQADataset(BaseDataset):
             "loc": loc,
             "loc_image": loc_image,
             "cond": cond,
-            "port": port
+            "port": port,
+            "port_edit": port_edit
         }
         return dict_to(batch, self.config.device)

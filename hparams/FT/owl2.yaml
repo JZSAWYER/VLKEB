@@ -1,5 +1,5 @@
 # Model
-device: 2
+device: 1
 
 alg_name: FT
 name: /home/v-hazhong/Models/mPLUG-Owl2/
