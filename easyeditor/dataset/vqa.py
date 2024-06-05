@@ -154,7 +154,7 @@ class VQADataset(BaseDataset):
             item['multimodal_locality_image'] = locality_image
             item['multimodal_locality_prompt'] = record['m_loc_q']
             item['multimodal_locality_ground_truth'] = record['m_loc_a']
-            if ('port_new' in record):
+            if ('port_new' in record) and (len(record['port_new']) > 0):
                 item['port_q'] = []
                 item['port_a'] = []
                 item['port_edit_q'] = []
@@ -162,15 +162,19 @@ class VQADataset(BaseDataset):
                 item['hop'] = []
                 for k in record['port_new']:
                     ##twice edit:
-                    item['port_q'].append(k['port_q'])
-                    item['port_a'].append(k['port_a'])
-                    item['port_edit_q'].append(k['port_edit_q'])
-                    item['port_edit_a'].append(k['port_edit_a'])
-                    item['hop'].append('1-hop')
-                    ##orig:
+                    # item['port_q'].append(k['port_q'])
+                    # item['port_a'].append(k['port_a'])
+                    # item['port_edit_q'].append(k['port_edit_q'])
+                    # item['port_edit_a'].append(k['port_edit_a'])
+                    # item['hop'].append('1-hop')
+                    ##
                     # item['port_q'].append(k['Q&A']['Question'])
                     # item['port_a'].append(k['Q&A']['Answer'])
-                    # item['hop'].append(k['port_type'])
+                    # item['hop'].append('1-hop')
+                    ##orig:
+                    item['port_q'].append(k['Q&A']['Question'])
+                    item['port_a'].append(k['Q&A']['Answer'])
+                    item['hop'].append(k['port_type'])
             else:
                 continue
             data.append(item)
@@ -311,10 +315,10 @@ class VQADataset(BaseDataset):
         edit_inner['inputs'] = self.tok(text, return_tensors='pt')["input_ids"]
         if self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl":
             edit_inner['prompts_len'] = [len(self.tok.encode(s, add_special_tokens=False)) for s in src]
-            edit_inner['labels'] = self.tok(trg, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+            edit_inner['labels'] = self.tok([' '+t for t in trg], add_special_tokens=False, return_tensors="pt",)["input_ids"]
         else:
             edit_inner['prompts_len'] = [len(self.tok.encode(s)) for s in src]
-            edit_inner['labels'] = self.tok(trg, return_tensors="pt",)["input_ids"]
+            edit_inner['labels'] = self.tok([' '+t for t in trg], return_tensors="pt",)["input_ids"]
         
         # # edit_outer
         edit_outer = {}
@@ -330,10 +334,10 @@ class VQADataset(BaseDataset):
         edit_outer['inputs'] = self.tok(text, return_tensors='pt')["input_ids"]
         if self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl":
             edit_outer['prompts_len'] = [len(self.tok.encode(r, add_special_tokens=False)) for r in rephrase]
-            edit_outer['labels'] = self.tok(trg, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+            edit_outer['labels'] = self.tok([' '+t for t in trg], add_special_tokens=False, return_tensors="pt",)["input_ids"]
         else:
             edit_outer['prompts_len'] = [len(self.tok.encode(r)) for r in rephrase]
-            edit_outer['labels'] = self.tok(trg, return_tensors="pt",)["input_ids"]
+            edit_outer['labels'] = self.tok([' '+t for t in trg], return_tensors="pt",)["input_ids"]
             
         # edit_outer_image
         edit_outer_image = {}
@@ -349,10 +353,10 @@ class VQADataset(BaseDataset):
         edit_outer_image['inputs'] = self.tok(text, return_tensors='pt')["input_ids"]
         if self.config.model_name == "minigpt4" or self.config.model_name == "blip2" or self.config.model_name == "qwen-vl":
             edit_outer_image['prompts_len'] = [len(self.tok.encode(s, add_special_tokens=False)) for s in src]
-            edit_outer_image['labels'] = self.tok(trg, add_special_tokens=False, return_tensors="pt",)["input_ids"]
+            edit_outer_image['labels'] = self.tok([' '+t for t in trg], add_special_tokens=False, return_tensors="pt",)["input_ids"]
         else:
             edit_outer_image['prompts_len'] = [len(self.tok.encode(s)) for s in src]
-            edit_outer_image['labels'] = self.tok(trg, return_tensors="pt",)["input_ids"]
+            edit_outer_image['labels'] = self.tok([' '+t for t in trg], return_tensors="pt",)["input_ids"]
         
         # # loc
         loc = {}

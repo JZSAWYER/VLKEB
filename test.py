@@ -69,8 +69,8 @@ def test_SERAC_owl():
 
 def test_FT_owl():
     hparams = FTMultimodalHparams.from_hparams('hparams/FT/owl2.yaml')
-    # eval_ds = VQADataset(eval_path, config=hparams)
-    eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
+    eval_ds = VQADataset(eval_path, config=hparams)
+    # eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
     # eval_ds = VQADataset(eval_short_path, config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
@@ -81,8 +81,8 @@ def test_FT_owl():
 
 def test_FT_qwen():
     hparams = FTMultimodalHparams.from_hparams('hparams/FT/qwen-vl.yaml')
-    # eval_ds = VQADataset(eval_path, config=hparams)
-    eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
+    eval_ds = VQADataset(eval_path, config=hparams)
+    # eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
     # eval_ds = VQADataset(eval_short_path, config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
@@ -216,24 +216,24 @@ def test_seq_MEND_owl():
 
 def test_seq_SERAC_owl():
     hparams = SERACMultimodalHparams.from_hparams('hparams/SERAC/owl.yaml')
-    # eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop.json", config=hparams)
-    eval_ds = VQADataset('/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_100.json', config=hparams)
+    eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop.json", config=hparams)
+    # eval_ds = VQADataset('/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_100.json', config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
         train_set=eval_ds,
         val_set=eval_ds
     )
-    trainer.test_sequencial(log=True, test_num=20, gap_num=gap_num)
+    trainer.test_sequencial(log=True, gap_num=gap_num)
 
 
 if __name__ == '__main__':
     # test_SERAC_qwen()
     # test_SERAC_owl()
-    # test_FT_owl()
+    test_FT_owl()
     # test_FT_qwen()
     # test_FT_qwenvis()
     # test_FT_owlvis()
-    test_MEND_owl()
+    # test_MEND_owl()
     # test_MEND_qwen()
     # test_owl()
     # test_qwen()

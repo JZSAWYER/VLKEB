@@ -63,90 +63,90 @@ class MultimodalTrainer(BaseTrainer):
         if self.config.alg.lower() == "ft":
             edited_model, model_info = self.model.edit(batch["edit_inner"], batch["cond"], detach_history=False)
         else:
-            edited_model, model_info = self.model.edit(batch["edit_inner"], batch["cond"], detach_history=True)
+            edited_model, model_info = self.model.edit(batch["edit_inner"], batch["cond"])
         #twice edit
-        assert len(batch['port']) == 1, "batch['port'] should have only one element"
-        edited_model, model_info = edited_model.edit(batch["port_edit"][0], batch["cond"], detach_history=False)
+        # assert len(batch['port']) == 1, "batch['port'] should have only one element"
+        # edited_model, model_info = edited_model.edit(batch["port_edit"][0], batch["cond"], detach_history=False)
         edit_time = time.time() - start
 
         with torch.set_grad_enabled(training):
-            # # Editing loss
-            # post_edit_outputs = edited_model(batch["edit_outer"])
-            # if not isinstance(post_edit_outputs, torch.Tensor):
-            #     post_edit_logits = post_edit_outputs.logits
-            #     post_batch_labels = post_edit_outputs.labels
-            # else:
-            #     post_edit_logits = post_edit_outputs
-            #     post_batch_labels = batch["edit_outer"]["labels"]
+            # Editing loss
+            post_edit_outputs = edited_model(batch["edit_outer"])
+            if not isinstance(post_edit_outputs, torch.Tensor):
+                post_edit_logits = post_edit_outputs.logits
+                post_batch_labels = post_edit_outputs.labels
+            else:
+                post_edit_logits = post_edit_outputs
+                post_batch_labels = batch["edit_outer"]["labels"]
 
-            # # rephrase image
-            # post_image_edit_outputs = edited_model(batch["edit_outer_image"])
+            # rephrase image
+            post_image_edit_outputs = edited_model(batch["edit_outer_image"])
             
-            # if not isinstance(post_image_edit_outputs, torch.Tensor):
-            #     post_image_edit_logits = post_image_edit_outputs.logits
-            #     post_image_batch_labels = post_image_edit_outputs.labels
-            # else:
-            #     post_image_edit_logits = post_image_edit_outputs
-            #     post_image_batch_labels = batch["edit_outer_image"]["labels"]
+            if not isinstance(post_image_edit_outputs, torch.Tensor):
+                post_image_edit_logits = post_image_edit_outputs.logits
+                post_image_batch_labels = post_image_edit_outputs.labels
+            else:
+                post_image_edit_logits = post_image_edit_outputs
+                post_image_batch_labels = batch["edit_outer_image"]["labels"]
                 
-            # inner_edit_outputs = edited_model(batch["edit_inner"])
+            inner_edit_outputs = edited_model(batch["edit_inner"])
             
-            # if not isinstance(inner_edit_outputs, torch.Tensor):
-            #     inner_edit_logits = inner_edit_outputs.logits
-            #     inner_batch_labels = inner_edit_outputs.labels
-            # else:
-            #     inner_edit_logits = inner_edit_outputs
-            #     inner_batch_labels = batch["edit_inner"]["labels"]
+            if not isinstance(inner_edit_outputs, torch.Tensor):
+                inner_edit_logits = inner_edit_outputs.logits
+                inner_batch_labels = inner_edit_outputs.labels
+            else:
+                inner_edit_logits = inner_edit_outputs
+                inner_batch_labels = batch["edit_inner"]["labels"]
 
-            # l_edit = self.model.edit_loss_fn(self.config, post_edit_logits, post_batch_labels, multimodal=True)["nll"]
-            # l_image_edit = self.model.edit_loss_fn(self.config, post_image_edit_logits, post_image_batch_labels, multimodal=True)["nll"]          
+            l_edit = self.model.edit_loss_fn(self.config, post_edit_logits, post_batch_labels, multimodal=True)["nll"]
+            l_image_edit = self.model.edit_loss_fn(self.config, post_image_edit_logits, post_image_batch_labels, multimodal=True)["nll"]          
             
-            # # Collect some useful metrics
-            # with torch.no_grad():
-            #     post_edit_dict = self.model.edit_loss_fn(self.config, post_edit_logits, post_batch_labels, multimodal=True)
-            #     inner_edit_dict = self.model.edit_loss_fn(self.config, inner_edit_logits, inner_batch_labels, multimodal=True)
-            #     image_rephrase_edit_dict = self.model.edit_loss_fn(self.config, post_image_edit_logits, post_image_batch_labels, multimodal=True)
+            # Collect some useful metrics
+            with torch.no_grad():
+                post_edit_dict = self.model.edit_loss_fn(self.config, post_edit_logits, post_batch_labels, multimodal=True)
+                inner_edit_dict = self.model.edit_loss_fn(self.config, inner_edit_logits, inner_batch_labels, multimodal=True)
+                image_rephrase_edit_dict = self.model.edit_loss_fn(self.config, post_image_edit_logits, post_image_batch_labels, multimodal=True)
             
-            # post_base_outputs = edited_model(batch["loc"])
-            # if not isinstance(post_base_outputs, torch.Tensor):
-            #     post_base_logits = post_base_outputs.logits
-            #     kl_mask = post_base_outputs.attention_mask
-            # else:
-            #     post_base_logits = post_base_outputs
-            #     kl_mask = torch.ones(post_base_logits.shape[0], post_base_logits.shape[1]).to(post_base_logits.device)
+            post_base_outputs = edited_model(batch["loc"])
+            if not isinstance(post_base_outputs, torch.Tensor):
+                post_base_logits = post_base_outputs.logits
+                kl_mask = post_base_outputs.attention_mask
+            else:
+                post_base_logits = post_base_outputs
+                kl_mask = torch.ones(post_base_logits.shape[0], post_base_logits.shape[1]).to(post_base_logits.device)
 
-            # post_image_base_outputs = edited_model(batch["loc_image"])
-            # if not isinstance(post_base_outputs, torch.Tensor):
-            #     post_image_base_logits = post_image_base_outputs.logits
-            #     kl_image_mask = post_image_base_outputs.attention_mask
-            # else:
-            #     post_image_base_logits = post_image_base_outputs
-            #     kl_image_mask = torch.ones(post_image_base_logits.shape[0], post_image_base_logits.shape[1]).to(base_image_logits.device)
+            post_image_base_outputs = edited_model(batch["loc_image"])
+            if not isinstance(post_base_outputs, torch.Tensor):
+                post_image_base_logits = post_image_base_outputs.logits
+                kl_image_mask = post_image_base_outputs.attention_mask
+            else:
+                post_image_base_logits = post_image_base_outputs
+                kl_image_mask = torch.ones(post_image_base_logits.shape[0], post_image_base_logits.shape[1]).to(base_image_logits.device)
 
-            # l_loc = kl_loc_loss(base_logits.detach(), post_base_logits, mask=kl_mask)
-            # l_image_loc = kl_loc_loss(base_image_logits.detach(), post_image_base_logits, mask=kl_image_mask)
+            l_loc = kl_loc_loss(base_logits.detach(), post_base_logits, mask=kl_mask)
+            l_image_loc = kl_loc_loss(base_image_logits.detach(), post_image_base_logits, mask=kl_image_mask)
             
             info_dict = {}
-            if len(batch['port']) > 0:
-                port_acc = 0
-                for port in batch['port']:
-                    with torch.no_grad():
-                        port_outputs = edited_model(port)
-                        port_labels = port["labels"]
-                        if not isinstance(port_outputs, torch.Tensor):
-                            port_logits = port_outputs.logits
-                        else:
-                            port_logits = port_outputs
-                        if port_logits.shape[1] > port_labels.shape[1]:
-                            port_dict = self.model.edit_loss_fn(self.config, port_logits, port_labels)
-                        else:
-                            port_dict = self.model.edit_loss_fn(self.config, port_logits, port_labels[:, -port_logits.shape[1]-1:])
-                        port_acc += port_dict["acc"].item()
-                        info_dict['grad/port_pred_ids'] = port_dict['pred_ids']
-                        info_dict['grad/port_targ_ids'] = port_dict['targ_ids']
-                        info_dict[f"port_{port['hop']}/acc"] = port_dict["acc"].item()
-                port_acc /= len(batch['port'])
-                info_dict['port/acc'] = port_acc
+            # if len(batch['port']) > 0:
+            #     port_acc = 0
+            #     for port in batch['port']:
+            #         with torch.no_grad():
+            #             port_outputs = edited_model(port)
+            #             port_labels = port["labels"]
+            #             if not isinstance(port_outputs, torch.Tensor):
+            #                 port_logits = port_outputs.logits
+            #             else:
+            #                 port_logits = port_outputs
+            #             if port_logits.shape[1] > port_labels.shape[1]:
+            #                 port_dict = self.model.edit_loss_fn(self.config, port_logits, port_labels)
+            #             else:
+            #                 port_dict = self.model.edit_loss_fn(self.config, port_logits, port_labels[:, -port_logits.shape[1]-1:])
+            #             port_acc += port_dict["acc"].item()
+            #             info_dict['grad/port_pred_ids'] = port_dict['pred_ids']
+            #             info_dict['grad/port_targ_ids'] = port_dict['targ_ids']
+            #             info_dict[f"port_{port['hop']}/acc"] = port_dict["acc"].item()
+            #     port_acc /= len(batch['port'])
+            #     info_dict['port/acc'] = port_acc
 
         # if l_edit.isnan():
         #     print("l_edit is nan")
@@ -161,42 +161,42 @@ class MultimodalTrainer(BaseTrainer):
         #     print("l_image_loc is nan")
         #     print("input: ", batch["loc_image"]['text_input'])
 
-        # if self.config.alg == "SERAC_MULTI":
-        #     l_total_edit = self.config.cedit * l_edit + self.config.cloc * l_loc + self.config.iedit * l_image_edit
-        # else:
-        #     l_total_edit = self.config.cedit * l_edit + self.config.cloc * (l_loc + l_image_loc) + self.config.iedit * l_image_edit
+        if self.config.alg == "SERAC_MULTI":
+            l_total_edit = self.config.cedit * l_edit + self.config.cloc * l_loc + self.config.iedit * l_image_edit
+        else:
+            l_total_edit = self.config.cedit * l_edit + self.config.cloc * (l_loc + l_image_loc) + self.config.iedit * l_image_edit
         
 
-        # if training and self.config.alg != 'ft':
-        #     safe_backward(l_total_edit, self.model.outer_parameters(), self.config.accumulate_bs, allow_unused=True)
+        if training and self.config.alg != 'ft':
+            safe_backward(l_total_edit, self.model.outer_parameters(), self.config.accumulate_bs, allow_unused=True)
 
-        # # Text locality
-        # post_base_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(post_base_logits, dim=-1), k=1, dim=-1).indices
-        # base_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(base_logits, dim=-1), k=1, dim=-1).indices
+        # Text locality
+        post_base_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(post_base_logits, dim=-1), k=1, dim=-1).indices
+        base_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(base_logits, dim=-1), k=1, dim=-1).indices
 
-        # # Image locality
-        # post_image_base_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(post_image_base_logits, dim=-1), k=10, dim=-1).indices
-        # base_image_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(base_image_logits, dim=-1), k=10, dim=-1).indices
+        # Image locality
+        post_image_base_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(post_image_base_logits, dim=-1), k=10, dim=-1).indices
+        base_image_logits_softmax_top_k = torch.topk(torch.nn.functional.softmax(base_image_logits, dim=-1), k=10, dim=-1).indices
 
 
-        # info_dict['loss/edit'] = l_edit.item()
-        # info_dict['loss/image_edit'] = l_image_edit.item()
-        # info_dict['loss/loc'] = l_loc.item()
-        # info_dict['edit/acc'] = post_edit_dict["acc"].item()
-        # info_dict['edit/log_prob'] = post_edit_dict["log_prob"].item()
-        # info_dict['edit/prob'] = post_edit_dict["prob"].item()
-        # info_dict['inner/acc'] = inner_edit_dict["acc"].item()
-        # info_dict['image_rephrase/acc'] = image_rephrase_edit_dict["acc"].item()
+        info_dict['loss/edit'] = l_edit.item()
+        info_dict['loss/image_edit'] = l_image_edit.item()
+        info_dict['loss/loc'] = l_loc.item()
+        info_dict['edit/acc'] = post_edit_dict["acc"].item()
+        info_dict['edit/log_prob'] = post_edit_dict["log_prob"].item()
+        info_dict['edit/prob'] = post_edit_dict["prob"].item()
+        info_dict['inner/acc'] = inner_edit_dict["acc"].item()
+        info_dict['image_rephrase/acc'] = image_rephrase_edit_dict["acc"].item()
         info_dict["time/edit"] = edit_time
-        # info_dict["loc/acc"] = sum(post_base_logits_softmax_top_k.view(-1) == base_logits_softmax_top_k.view(-1))/post_base_logits_softmax_top_k.view(-1).shape[0]
-        # info_dict["image_loc/acc"] = sum(post_image_base_logits_softmax_top_k.view(-1) == base_image_logits_softmax_top_k.view(-1))/post_image_base_logits_softmax_top_k.view(-1).shape[0]
-        if len(batch['port'])>0:
-            info_dict['port/acc'] = port_acc
+        info_dict["loc/acc"] = sum(post_base_logits_softmax_top_k.view(-1) == base_logits_softmax_top_k.view(-1))/post_base_logits_softmax_top_k.view(-1).shape[0]
+        info_dict["image_loc/acc"] = sum(post_image_base_logits_softmax_top_k.view(-1) == base_image_logits_softmax_top_k.view(-1))/post_image_base_logits_softmax_top_k.view(-1).shape[0]
+        # if len(batch['port'])>0:
+        #     info_dict['port/acc'] = port_acc
         l_base = torch.tensor(0.0)
-        # l_total = l_total_edit + self.config.cbase * l_base
+        l_total = l_total_edit + self.config.cbase * l_base
 
-        # info_dict["loss/total"] = l_total.item()
-        # info_dict["loss/total_edit"] = l_total_edit.item()
+        info_dict["loss/total"] = l_total.item()
+        info_dict["loss/total_edit"] = l_total_edit.item()
         info_dict["memory/alloc_max"] = torch.cuda.max_memory_allocated()
         info_dict["memory/res_max"] = torch.cuda.max_memory_reserved()
         info_dict = {**info_dict, **model_info}
@@ -234,23 +234,23 @@ class MultimodalTrainer(BaseTrainer):
     def _inline_validation_log(self, step, stats, start_time, steps):
         elapsed = (time.time() - start_time) / (step + 1)
         prog = f"{step+1}/{steps}".ljust(20)
-        # inner_acc = f"{stats['inner/acc_val']:<12.5f}"
-        # outer_acc = f"{stats['edit/acc_val']:<12.5f}"
-        # image_acc = f"{stats['image_rephrase/acc_val']:<12.5f}"
-        # loc_acc = f"{stats['loc/acc_val']:<12.5f}"
-        # loc_image_acc = f"{stats['image_loc/acc_val']:<12.5f}"
-        port_acc = f"{stats['port/acc_val']:<12.5f}"
-        port_1_acc = f"{stats['port_1-hop/acc_val']:<12.5f}"
-        port_2_acc = f"{stats['port_2-hop/acc_val']:<12.5f}"
-        port_3_acc = f"{stats['port_3-hop/acc_val']:<12.5f}"
-        port_4_acc = f"{stats['port_4-hop/acc_val']:<12.5f}"
+        inner_acc = f"{stats['inner/acc_val']:<12.5f}"
+        outer_acc = f"{stats['edit/acc_val']:<12.5f}"
+        image_acc = f"{stats['image_rephrase/acc_val']:<12.5f}"
+        loc_acc = f"{stats['loc/acc_val']:<12.5f}"
+        loc_image_acc = f"{stats['image_loc/acc_val']:<12.5f}"
+        # port_acc = f"{stats['port/acc_val']:<12.5f}"
+        # port_1_acc = f"{stats['port_1-hop/acc_val']:<12.5f}"
+        # port_2_acc = f"{stats['port_2-hop/acc_val']:<12.5f}"
+        # port_3_acc = f"{stats['port_3-hop/acc_val']:<12.5f}"
+        # port_4_acc = f"{stats['port_4-hop/acc_val']:<12.5f}"
 
-        # LOG.info(
-        #   f"Step {prog} outer_acc: {outer_acc} image_acc: {image_acc} inner_acc: {inner_acc} it_time: {elapsed:.4f} loc_acc: {loc_acc}, image_loc: {loc_image_acc}"
-        # )
         LOG.info(
-            f"Step {prog} port_acc: {port_acc} port_1_acc: {port_1_acc} port_2_acc: {port_2_acc} port_3_acc: {port_3_acc} port_4_acc: {port_4_acc}"
+          f"Step {prog} outer_acc: {outer_acc} image_acc: {image_acc} inner_acc: {inner_acc} it_time: {elapsed:.4f} loc_acc: {loc_acc}, image_loc: {loc_image_acc}"
         )
+        # LOG.info(
+        #     f"Step {prog} port_acc: {port_acc} port_1_acc: {port_1_acc} port_2_acc: {port_2_acc} port_3_acc: {port_3_acc} port_4_acc: {port_4_acc}"
+        # )
 
     def _inline_validation_log_twiceedit(self, step, stats, start_time, steps):
         elapsed = (time.time() - start_time) / (step + 1)
@@ -296,46 +296,46 @@ class MultimodalTrainer(BaseTrainer):
             averager.add(info_dict)
 
             # append write to txt file info_dict['port/acc']
-            if result_name is not None:
-                edit_inputs = batch['edit_inner']['text_input']
-                port_all = []
-                for _port in batch['port']:
-                    port_inputs = _port['text_input']
-                    port_acc = info_dict['port/acc']
-                    port_pred_ids = info_dict['grad/port_pred_ids'].cpu().numpy()
-                    port_targ_ids = info_dict['grad/port_targ_ids'].cpu().numpy()
-                    port_all.append({
-                        'port_type': _port['hop'],
-                        'port_input': port_inputs,
-                        'port_acc': port_acc,
-                        'port_pred_ids': port_pred_ids.tolist(),
-                        'port_targ_ids': port_targ_ids.tolist()
-                    })
-                port_result.append({
-                    'idx': val_step,
-                    'edit_input': edit_inputs,
-                    'port': port_all
-                })
+            # if result_name is not None:
+            #     edit_inputs = batch['edit_inner']['text_input']
+            #     port_all = []
+            #     for _port in batch['port']:
+            #         port_inputs = _port['text_input']
+            #         port_acc = info_dict['port/acc']
+            #         port_pred_ids = info_dict['grad/port_pred_ids'].cpu().numpy()
+            #         port_targ_ids = info_dict['grad/port_targ_ids'].cpu().numpy()
+            #         port_all.append({
+            #             'port_type': _port['hop'],
+            #             'port_input': port_inputs,
+            #             'port_acc': port_acc,
+            #             'port_pred_ids': port_pred_ids.tolist(),
+            #             'port_targ_ids': port_targ_ids.tolist()
+            #         })
+            #     port_result.append({
+            #         'idx': val_step,
+            #         'edit_input': edit_inputs,
+            #         'port': port_all
+            #     })
         
             if (
                 log
                 and (val_step + 1) % self.config.log_interval == 0
             ):
-                # self._inline_validation_log(
-                #     val_step, averager.average(), start_time, steps
-                # )
+                self._inline_validation_log(
+                    val_step, averager.average(), start_time, steps
+                )
                 ##edittwice
-                self._inline_validation_log_twiceedit(val_step, averager.average(), start_time, steps)
+                # self._inline_validation_log_twiceedit(val_step, averager.average(), start_time, steps)
 
-        if result_name is not None:
-            os.makedirs('results/results_test', exist_ok=True)
-            with open(f'results/results_multihop/{result_name}_port.json', 'w') as f:
-                json.dump(port_result, f, indent=4)
+        # if result_name is not None:
+        #     os.makedirs('results/results_test', exist_ok=True)
+        #     with open(f'results/results_multihop/{result_name}_port.json', 'w') as f:
+        #         json.dump(port_result, f, indent=4)
 
         if log:
-            # self._inline_validation_log(val_step, averager.average(), start_time, steps)
-            ##edittwice
-            self._inline_validation_log_twiceedit(val_step, averager.average(), start_time, steps)
+            self._inline_validation_log(val_step, averager.average(), start_time, steps)
+            #edittwice
+            # self._inline_validation_log_twiceedit(val_step, averager.average(), start_time, steps)
         elapsed = time.time() - start_time
         stats = averager.average()
         stats["eval_time/elapsed"] = elapsed
@@ -517,7 +517,8 @@ class MultimodalTrainer(BaseTrainer):
         ##############################################################################
 
         ################ portability #################
-        if(len(batch['port']) > 0):
+        # assert len(batch['port']) == 1, "batch['port'] exist and have only one element"
+        if (len(batch['port'])>0):
             port = batch['port'][0]
             with torch.no_grad():
                 port_outputs = edited_model(port)
@@ -531,7 +532,7 @@ class MultimodalTrainer(BaseTrainer):
                 else:
                     port_dict = self.model.edit_loss_fn(self.config, port_logits, port_labels[:, -port_logits.shape[1]-1:])
                 port_acc = port_dict["acc"].item()
-            info_dict['port/acc'] = port_acc
+        info_dict['port/acc'] = port_acc
         ################ portability #################
 
         return info_dict
@@ -554,21 +555,20 @@ class MultimodalTrainer(BaseTrainer):
         for val_step, batch in enumerate(self.val_loader):
             if val_step < test_num:
                 val_data_store.append(batch)
-                if self.config.alg != 'SERAC_MULTI':
-                    with torch.no_grad():
-                        base_outputs = self.model(batch["loc"])
-                        if not isinstance(base_outputs, torch.Tensor):
-                            base_logits = base_outputs.logits
-                        else:  
-                            base_logits = base_outputs
-                        base_logits_store.append(base_logits.clone().detach())
-                            
-                        base_image_outputs = self.model(batch["loc_image"])
-                        if not isinstance(base_image_outputs, torch.Tensor):
-                            base_image_logits = base_image_outputs.logits
-                        else:
-                            base_image_logits = base_image_outputs
-                        base_image_logits_store.append(base_image_logits.clone().detach())
+                with torch.no_grad():
+                    base_outputs = self.model(batch["loc"])
+                    if not isinstance(base_outputs, torch.Tensor):
+                        base_logits = base_outputs.logits
+                    else:  
+                        base_logits = base_outputs
+                    base_logits_store.append(base_logits.clone().detach())
+                        
+                    base_image_outputs = self.model(batch["loc_image"])
+                    if not isinstance(base_image_outputs, torch.Tensor):
+                        base_image_logits = base_image_outputs.logits
+                    else:
+                        base_image_logits = base_image_outputs
+                    base_image_logits_store.append(base_image_logits.clone().detach())
                 pbar.update(1)
             else:
                 break
@@ -577,17 +577,11 @@ class MultimodalTrainer(BaseTrainer):
         edited_model = self.model
         pbar = tqdm(total=gap_num+test_num, desc=f"Test Gap {gap_num}", ncols=100)
         for val_step, batch in enumerate(self.val_loader):
-            edited_model, _ = edited_model.edit(batch["edit_inner"], batch["cond"], detach_history=False)
-            torch.cuda.empty_cache()
+            edited_model, _ = edited_model.edit(batch["edit_inner"], batch["cond"], detach_history=True)
             if val_step >= gap_num:
                 stored_batch = val_data_store.pop(0)
-                if self.config.alg != 'SERAC_MULTI':
-                    stored_base_logits = base_logits_store.pop(0)
-                    stored_base_image_logits = base_image_logits_store.pop(0)
-                else:
-                    with torch.no_grad():
-                        stored_base_logits = self.model(stored_batch["loc"]).logits
-                        stored_base_image_logits = self.model(stored_batch["loc_image"]).logits
+                stored_base_logits = base_logits_store.pop(0)
+                stored_base_image_logits = base_image_logits_store.pop(0)
                 info_dict = self.test_sequencial_step(stored_batch, edited_model, stored_base_logits, stored_base_image_logits)
                 averager.add(info_dict)
 
@@ -596,12 +590,9 @@ class MultimodalTrainer(BaseTrainer):
                     val_step, averager.average(), start_time, steps
                 )
             pbar.update(1)
-            if self.config.alg != 'SERAC_MULTI':
-                if len(val_data_store) == 0:
-                    break
-            else:
-                if val_step == test_num+gap_num-1:
-                    break
+
+            if len(val_data_store) == 0:
+                break
         pbar.close()
 
         if log:
@@ -611,9 +602,9 @@ class MultimodalTrainer(BaseTrainer):
         stats["eval_time/elapsed"] = elapsed
         stats["eval_time/average"] = elapsed / steps
 
-        results_path = f"./results/results_sequential/{cur_time}_{self.config.alg}_{self.config.model_name}_port_seqgap{gap_num}.json"
+        os.makedirs("results/results_sequencial", exist_ok=True)
+        results_path = f"./results/results_sequencial/{cur_time}_{self.config.alg}_{self.config.model_name}_port_seqgap{gap_num}.json"
 
-        os.makedirs("results/results_sequential", exist_ok=True)
         with open(results_path, "w") as f:
             json.dump(
                 {"results": stats}, f

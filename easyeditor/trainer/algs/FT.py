@@ -23,6 +23,7 @@ class FT(EditableModel):
         if not str(self.config.device).startswith('cuda'):
             self.config.device = f'cuda:{self.config.device}'
         self.model = self.model.to(torch.float32)
+        self.save_weight = None
         
     def state_dict(self, destination=None, prefix="", keep_vars=False):
         state_dict = super().state_dict(
@@ -62,6 +63,8 @@ class FT(EditableModel):
         return None
 
     def edit(self, batch, condition=None, detach_history=False, return_factors=False):
+        if self.save_weight is not None:
+            self.model.load_state_dict(self.save_weight, strict=False)
         self.model.train()
         names = set([n for n, p in self.model.named_parameters()])
         pset = set(self.config.inner_params)
@@ -75,7 +78,7 @@ class FT(EditableModel):
         }
         
         # Save old weights for future restoration
-        weights_copy = {k: v.detach().clone() for k, v in weights.items()}
+        self.save_weight = {k: v.detach().clone() for k, v in weights.items()}
         ########
         # print(weights_copy)
         print(f"Weights to be updated: {list(weights.keys())}")
@@ -90,7 +93,7 @@ class FT(EditableModel):
             w.requires_grad = name in weights
             # print(f"{name} requires grad: {w.requires_grad}")
 
-        if 'minigpt4' in self.config.model_name.lower() or 'blip' in self.config.model_name.lower() or 'llava' in self.config.model_name.lower() or "owl2" in self.config.model_name.lower():
+        if 'minigpt4' in self.config.model_name.lower() or 'blip' in self.config.model_name.lower() or 'llava' in self.config.model_name.lower():
             pbar = trange(self.config.num_steps, ncols=120)
             for it in pbar:
                 opt.zero_grad()

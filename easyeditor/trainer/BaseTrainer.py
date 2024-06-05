@@ -252,8 +252,8 @@ class BaseTrainer:
         self.echo(self.global_iter, val_info, pretty=True)
 
         if self.config.results_dir is not None:
-            os.makedirs('results/results_multihop', exist_ok=True)
-            results_path = f"results/results_multihop/{result_name}_portresults.json"
+            os.makedirs('results/', exist_ok=True)
+            results_path = f"results/{result_name}_portresults.json"
         else:
             results_path = f"{os.getcwd()}/results.json"
 

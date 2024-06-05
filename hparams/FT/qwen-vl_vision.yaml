@@ -1,5 +1,5 @@
 # Model
-device: 0
+device: 2
 
 alg_name: "FT"
 name: Qwen/qwen-vl
