@@ -130,8 +130,8 @@ class FT(EditableModel):
                 opt.step()
 
         elif "owl-2" in self.config.model_name.lower():
-            for param in self.model.parameters():
-                param.requires_grad = True
+            # for param in self.model.parameters():
+            #     param.requires_grad = True
             # for p in pset:
             #     for param in self.model.parameters():
             #         if p == param:
@@ -158,11 +158,11 @@ class FT(EditableModel):
             raise not NotImplementedError("Model not supported")
 
         if detach_history:
-            # new_model = self.model_constructor()
-            # new_model.load_state_dict(edited_model.state_dict())
-            # edited_model = new_model
-            self.model.load_state_dict(edited_model.state_dict())
-            edited_model = self.model
+            new_model = self.model_constructor()
+            new_model.load_state_dict(edited_model.state_dict())
+            edited_model = new_model
+            # self.model.load_state_dict(edited_model.state_dict())
+            # edited_model = self.model
         else:
             edited_model = self.model
 

@@ -1,5 +1,5 @@
 # Model
-device: 1
+device: 0
 
 alg_name: FT
 name: /home/v-hazhong/Models/mPLUG-Owl2/
@@ -48,7 +48,7 @@ model_save_pt: 5000
 silent: False
 #max_epochs: 1
 max_iters: 50000
-log_interval: 100
+log_interval: 25
 eval_log_interval: 1000
 final_eval: True
 val_interval: 5000

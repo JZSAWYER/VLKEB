@@ -69,9 +69,9 @@ def test_SERAC_owl():
 
 def test_FT_owl():
     hparams = FTMultimodalHparams.from_hparams('hparams/FT/owl2.yaml')
-    eval_ds = VQADataset(eval_path, config=hparams)
+    # eval_ds = VQADataset(eval_path, config=hparams)
     # eval_ds = VQADataset("/home/v-hazhong/Datasets/VLKEB/eval_Port_qa_onehop_edit_twice.json", config=hparams)
-    # eval_ds = VQADataset(eval_short_path, config=hparams)
+    eval_ds = VQADataset(eval_short_path, config=hparams)
     trainer = MultimodalTrainer(
         config=hparams,
         train_set=eval_ds,
